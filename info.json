@@ -1,0 +1,12 @@
+{
+  "name": "map-tag-core",
+  "version": "0.1.0",
+  "title": "Map tag core",
+  "author": "Subject31415",
+  "factorio_version": "1.1",
+  "dependencies": [
+    "base >= 1.1",
+    "arrowlib >= 0.1.1"
+  ],
+  "description": "Core for map-tag-gps and map-tag-teleport"
+}
