@@ -56,10 +56,9 @@ end)
 
 script.on_event(defines.events.on_chart_tag_added, function(e)
     -- Check if tag is GPS tag
-    if e.tag.text == settings.global["gps_tag-name"].value then
+    if game.active_mods["map-tag-gps"] and e.tag.text == settings.global["gps_tag-name"].value then
         gps.set_destination(e.player_index, e.tag)
     end
-
 end)
 
 script.on_event(defines.events.on_chart_tag_removed, function(e)
@@ -71,7 +70,7 @@ end)
 ---------------------------------------------------------------------------
 
 -- script.on_event(defines.events.on_lua_shortcut, function(e)
---     if not game.players[e.player_index] then
+--     if not game.get_player(e.player_index) then
 --         return
 --     end
 
