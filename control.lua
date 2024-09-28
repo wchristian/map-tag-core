@@ -8,7 +8,8 @@ local function init_global_player(player_index)
 
     if not global.players[player_index] then
         global.players[player_index] = {
-            destinations = {}
+            destinations = {},
+            bookmarks = {}
         }
     end
 end
@@ -99,8 +100,15 @@ script.on_event(defines.events.on_player_selected_area, function(e)
         return
     end
     if cursor_stack.name == "mt_gps-selection-tool" then
+        -- Get variables
+        local mod_teleport = game.active_mods["map-tag-teleport"] ~= nil
+        local mod_gps = game.active_mods["map-tag-gps"] ~= nil
+        local mod_both = mod_teleport and mod_gps
+        local ctrl_click_teleports = settings.global["mtc_ctrl-click-behavior"] and
+                                         settings.global["mtc_ctrl-click-behavior"].value == "mtc_teleport"
+
         -- Process the action
-        if game.active_mods["map-tag-teleport"] then
+        if (mod_both and not ctrl_click_teleports) or (not mod_both and mod_teleport) then
             -- If map tag teleport is installed, teleport instead
             local pos = {
                 x = (e.area.left_top.x + e.area.right_bottom.x) / 2,
@@ -137,15 +145,33 @@ script.on_event(defines.events.on_gui_click, function(e)
         end
 
         -- Process the action
-        if game.active_mods["map-tag-teleport"] then
-            -- If map tag teleport is installed, teleport instead
-            gps.teleport_to_tag(e.player_index, tag)
+        local mod_teleport = game.active_mods["map-tag-teleport"] ~= nil
+        local mod_gps = game.active_mods["map-tag-gps"] ~= nil
+        local mod_both = mod_teleport and mod_gps
+        local ctrl_click_teleports = settings.global["mtc_ctrl-click-behavior"] and
+                                         settings.global["mtc_ctrl-click-behavior"].value == "mtc_teleport"
+
+        if mod_both then
+            if ctrl_click_teleports and e.control or (not ctrl_click_teleports and not e.control) then
+                gps.teleport_to_tag(e.player_index, tag)
+            else
+                gps.set_destination(e.player_index, tag)
+            end
         else
-            -- Regular click is set destination
-            gps.set_destination(e.player_index, tag)
+            if mod_teleport then
+                gps.teleport_to_tag(e.player_index, tag)
+            else
+                -- Fallback set gps
+                gps.set_destination(e.player_index, tag)
+            end
+        end
+
+        if (mod_both and ctrl_click_teleports and e.control) or (not mod_both and mod_teleport) then
         end
     elseif e.element.name == "mt_remove-all-destinations" then
         gps.remove_all(e.player_index)
+    elseif e.element.name == "mt_bookmark-button" then
+        gui.bookmark(e.player_index, e.element)
     end
 end)
 

@@ -11,11 +11,13 @@ local int_to_str = function(number, decimals)
     return math.floor(number * shift) / shift
 end
 
-local add_tag_element = function(scroll, tag)
+local add_tag_element = function(scroll, tag, bookmarked)
     local flow = scroll.add {
         type = "flow",
-        direction = "horizontal"
+        direction = "horizontal",
+        name = tag.tag_number
     }
+    flow.style.vertical_align = "center"
     local btn = flow.add {
         type = "sprite-button",
         name = "mt_tag-button",
@@ -39,6 +41,7 @@ local add_tag_element = function(scroll, tag)
     }
     txt.style.padding = 0
     txt.style.left_margin = 5
+    txt.style.horizontally_stretchable = true
     local l = txt.add {
         type = "label",
         caption = tag.text
@@ -55,33 +58,22 @@ local add_tag_element = function(scroll, tag)
     l.style.top_margin = -8
     l.style.font_color = {0, 150, 0}
     l.style.font = "count-font"
+
+    local pin = flow.add {
+        type = "sprite-button",
+        name = "mt_bookmark-button",
+        sprite = "utility/bookmark",
+        toggled = bookmarked,
+        tags = {
+            tag_id = tag.tag_number
+        }
+    }
+    pin.style.size = 24
 end
 
-gui.build_main = function(player)
-    local gui = get_main(player)
-    if gui then
-        return gui
-    end
+local build_content = function(player, gui)
 
-    gui = player.gui.left.add {
-        type = "frame",
-        name = MAIN_FRAME,
-        direction = "vertical"
-    }
-
-    if game.active_mods["map-tag-teleport"] then
-        gui.caption = "Map tag teleport"
-        gui.add {
-            type = "label",
-            caption = "Click a tag to teleport there immediately"
-        }
-    else
-        gui.caption = "Map tag GPS"
-        gui.add {
-            type = "label",
-            caption = "Set or cancel destination per tag"
-        }
-    end
+    local gp = global.players[player.index]
 
     local sf = gui.add {
         type = "frame",
@@ -104,8 +96,13 @@ gui.build_main = function(player)
     -- Generate table of tag names (with tag number appended)
     local tags = {}
     local indexes = {}
+    local bookmarks = gp.bookmarks or {}
     for _, t in pairs(player.force.find_chart_tags(player.surface)) do
-        local id = t.text .. "_" .. t.tag_number
+        local div = 2
+        if bookmarks and bookmarks[t.tag_number] then
+            div = 1
+        end
+        local id = div .. "_" .. t.text .. "_" .. t.tag_number
         table.insert(tags, id)
         indexes[id] = t
     end
@@ -118,10 +115,10 @@ gui.build_main = function(player)
     -- Loop through all tags and add them to the GUI
     for _, id in pairs(tags) do
         local t = indexes[id]
-        add_tag_element(scroll, t)
+        add_tag_element(scroll, t, bookmarks[t.tag_number])
     end
 
-    if not game.active_mods["map-tag-teleport"] then
+    if game.active_mods["map-tag-gps"] then
         local btn = gui.add {
             type = "button",
             name = "mt_remove-all-destinations",
@@ -130,6 +127,53 @@ gui.build_main = function(player)
         btn.style.top_margin = 10
         btn.style.bottom_margin = 5
     end
+end
+
+gui.build_main = function(player)
+    local gui = get_main(player)
+    if gui then
+        return gui
+    end
+
+    gui = player.gui.left.add {
+        type = "frame",
+        name = MAIN_FRAME,
+        direction = "vertical"
+    }
+
+    -- Set caption & label
+    local caption, label
+    local mod_teleport = game.active_mods["map-tag-teleport"] ~= nil
+    local mod_gps = game.active_mods["map-tag-gps"] ~= nil
+    local mod_both = mod_teleport and mod_gps
+    local ctrl_click_teleports = settings.global["mtc_ctrl-click-behavior"] and
+                                     settings.global["mtc_ctrl-click-behavior"].value == "mtc_teleport"
+    if mod_both then
+        if ctrl_click_teleports then
+            caption = {"mt-gui.caption-gps-teleport"}
+            label = {"mt-gui.label-gps-teleport"}
+        else
+            caption = {"mt-gui.caption-teleport-gps"}
+            label = {"mt-gui.label-teleport-gps"}
+        end
+    else
+        if mod_teleport then
+            caption = {"mt-gui.caption-teleport"}
+            label = {"mt-gui.label-teleport"}
+        elseif mod_gps then
+            caption = {"mt-gui.caption-gps"}
+            label = {"mt-gui.label-gps"}
+        end
+    end
+
+    gui.caption = caption
+    local l = gui.add {
+        type = "label",
+        caption = label
+    }
+    l.style.single_line = false
+
+    build_content(player, gui)
 end
 
 gui.destroy_main = function(player)
@@ -226,6 +270,35 @@ gui.tick_update = function()
             end
         end
     end
+end
+
+gui.bookmark = function(player_index, element)
+    -- Safe get variables
+    local player = game.get_player(player_index)
+    if not player then
+        return
+    end
+    local gui = get_main(player)
+    if not gui then
+        return
+    end
+    local gp = global.players[player_index]
+    if not gp then
+        return
+    end
+
+    -- Add/remove frombal player bookmarked
+    if not gp.bookmarks then
+        gp.bookmarks = {}
+    end
+    gp.bookmarks[element.tags.tag_id] = not element.toggled
+
+    -- Rebuild content
+    gui.subframe.destroy()
+    if gui["mt_remove-all-destinations"] then
+        gui["mt_remove-all-destinations"].destroy()
+    end
+    build_content(player, gui)
 end
 
 return gui
